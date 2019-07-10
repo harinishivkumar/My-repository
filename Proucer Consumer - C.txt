@@ -1,0 +1,191 @@
+#include <pthread.h>
+#include <time.h>
+#include <unistd.h>
+#include <semaphore.h>
+#include <stdlib.h>
+#include <stdio.h>
+ 
+//Executed with -lpthread argument
+ 
+
+pthread_t *producers_thread;        ///N threads running as producers///
+pthread_t *consumers_thread;          ///N threads running as consumers///
+int numOfproducersAwake = 0; 
+int numOfconsumersAwake = 0;      
+int bufferIndex = 0;               
+int state = 0;
+
+//Semaphores and Mutex Lock.
+sem_t producer_sem;                 ///a semaphore is used for signaling the sleeping producer that a consumer has awake///
+sem_t buffers_Sem[5];               ///a semaphore here signals the waiting consumer that the producer can now produce///
+sem_t consumer_Sem;                 //the producer waits for the consumer to leave the buffer///
+pthread_mutex_t buffer_access;      //the mutex lock for controlling access to the buffer///
+
+ 
+
+
+void *Producer_ThreadFunc(void *threadID) 
+{
+
+    int randomTime;  
+    while(1)
+    {
+      printf("Producer %ld wants to produce.\n", (long)threadID+1);
+      randomTime = rand() % 10 + 1;
+      sleep(randomTime);        // sleep between 1-10s
+      printf("Producer %ld is producing \n", (long)threadID+1);
+      pthread_mutex_lock(&buffer_access);
+      int count = numOfproducersAwake;
+      pthread_mutex_unlock(&buffer_access);
+      if(count < 5)                         ///The consumer tries to consume because there is an item in buffer///
+      {
+        if(count == 0)        
+        sem_post(&producer_sem);
+        else
+           printf("Producer %ld waiting for the consumer to finish. \n", (long)threadID+1);
+           pthread_mutex_lock(&buffer_access);   //acquire lock
+           int index = (bufferIndex + numOfproducersAwake) % 5;
+           numOfproducersAwake++;
+           if(state == 1){
+               printf("Producer %ld is producing.Buffers Remaining: %d\n",(long)threadID+1, 5 - numOfproducersAwake);
+           }
+           state = 1;
+           pthread_mutex_unlock(&buffer_access); //lock is released
+           sem_wait(&buffers_Sem[index]);        
+           printf("Producer %ld is producing an item. \n", (long)threadID+1);
+           sem_wait(&producer_sem);        
+           printf("Producer %ld left buffer \n",(long)threadID+1);
+           break;    // end thread function
+           }
+        else{
+           printf("Producer %ld will produce at another time. \n", (long)threadID+1);
+           }
+        }
+     return NULL;
+
+}
+
+void *Consumer_ThreadFunc(void *threadID)
+
+{
+
+    int randomTime;  
+    while(1)
+    {
+      printf("Consumer %ld wants to consume.\n", (long)threadID+1);
+      randomTime = rand() % 10 + 1;
+      sleep(randomTime);        // sleep between 1-10s
+      printf("Consumer %ld needs to consume \n", (long)threadID+1);
+      //lock for reading count variable
+      pthread_mutex_lock(&buffer_access);
+      int count = numOfconsumersAwake;
+      pthread_mutex_unlock(&buffer_access);
+      if(count < 5)                         ///The consumer tries to consume because there is an item in buffer///
+      {
+        if(count == 0)        
+        sem_post(&producer_sem);
+        else
+        printf("Consumer %ld waiting for the Producer to finish producing. \n", (long)threadID+1);
+        pthread_mutex_lock(&buffer_access);   //acquire lock
+        int index = (bufferIndex + numOfconsumersAwake) % 5;
+        numOfconsumersAwake++;
+        if(state == 1){
+           printf("Consumer %ld is consuming.Buffers Remaining: %d\n",(long)threadID+1, 5 - numOfconsumersAwake);
+        }
+        state = 1;
+        pthread_mutex_unlock(&buffer_access); //lock is released
+        sem_wait(&buffers_Sem[index]);        
+        printf("Consumer %ld is consuming an item. \n", (long)threadID+1);
+        sem_wait(&consumer_Sem);        
+        printf("Consumer %ld left Producer room.\n",(long)threadID+1);
+        break;    // end thread function
+        }
+        else{
+           printf("Consumer %ld will return at another time. \n", (long)threadID+1);
+        }
+     }
+
+   return NULL;
+
+}
+
+ 
+int main(int argc, char* argv[])
+
+{
+
+    int numberOfProducers = 5;
+    int numberOfConsumers = 5;
+    
+
+    int i;
+    srand((unsigned int) time(NULL));
+
+ 
+
+    sem_init(&producer_sem, 0, 5);
+
+    sem_init(&consumer_Sem, 0, 0);
+
+    pthread_mutex_init(&buffer_access, NULL);
+ 
+    //Allocating memory for threads
+    producers_thread = (pthread_t*) malloc(sizeof(pthread_t) * numberOfProducers);
+    consumers_thread = (pthread_t*) malloc(sizeof(pthread_t) * numberOfConsumers);
+
+ 
+
+    printf("%d threads for the Producer and %d Consumer threads have been created \n",numberOfProducers,numberOfConsumers);
+    printf("Two semaphores have been used, one each for the Producer and Consumer respectively. \n");
+    printf("Producer_ThreadFunc simulates the functionality for the Producers.  \n");
+    printf("Consumer_ThreadFunc simulates the functionality for the Consumers. \n");
+    printf("Size of buffer is 5\n");
+
+    //creating Producers thread
+   
+    for(i = 0; i < numberOfProducers; i++){
+
+        pthread_create(&producers_thread[i], NULL, Producer_ThreadFunc,(void*) (long)i);
+
+    }
+
+    //creating consumers thread
+
+    for(i = 0; i < numberOfConsumers; i++){
+
+        pthread_create(&consumers_thread[i], NULL, Consumer_ThreadFunc,(void*) (long)i);
+
+    }
+
+ 
+
+    //Waiting for the threads to finish.
+
+    for(i = 0; i < numberOfProducers; i++){
+
+           pthread_join(producers_thread[i], NULL);
+           
+    }
+
+    for(i = 0; i < numberOfConsumers; i++){
+
+           pthread_join(consumers_thread[i], NULL);
+
+    }
+
+
+    printf("No more consumers left. \n");
+    printf("Producer goes back to sleep.\n");
+
+    pthread_mutex_destroy(&buffer_access);
+    sem_destroy(&producer_sem);
+    sem_destroy(&consumer_Sem);    
+
+    //Free allocated memory     
+    free(producers_thread);
+    free(consumers_thread);
+
+    return 0;
+
+}
+
