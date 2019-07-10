@@ -1,0 +1,887 @@
+library(tree)
+library(rpart)
+library(rpart.plot)
+library(party)
+
+mushrooms <-read.csv(file.choose())
+fields <- c("class",
+            "cap_shape",
+            "cap_surface",
+            "cap_color",
+            "bruises",
+            "odor",
+            "gill_attachment",
+            "gill_spacing",
+            "gill_size",
+            "gill_color",
+            "stalk_shape",
+            "stalk_root",
+            "stalk_surface_above_ring",
+            "stalk_surface_below_ring",
+            "stalk_color_above_ring",
+            "stalk_color_below_ring",
+            "veil_type",
+            "veil_color",
+            "ring_number",
+            "ring_type",
+            "spore_print_color",
+            "population",
+            "habitat")
+colnames(mushrooms) <- fields
+mushrooms$veil_type = NULL;
+mushrooms$stalk_root = NULL;
+str(mushrooms)
+summary(mushrooms)
+mushrooms$class <- factor(mushrooms$class, levels=c("e","p"), labels=c("edible", "poisonous"))
+tree.mushrooms=tree(class~.,mushrooms)
+summary(tree.mushrooms)
+
+#Output
+Classification tree:
+tree(formula = class ~ ., data = mushrooms)
+Variables actually used in tree construction:
+[1] "odor"                   "spore_print_color"      "stalk_color_below_ring"
+Number of terminal nodes:  4 
+Residual mean deviance:  0.03136 = 254.6 / 8119 
+Misclassification error rate: 0.005909 = 48 / 8123
+
+set.seed(123)
+ind <- sample(2, nrow(mushrooms), replace=TRUE, prob=c(0.6, 0.4))
+trainset <- mushrooms[ind==1,]
+testset <- mushrooms[ind==2,]
+
+tree = rpart(class ~ ., data=mushrooms, method="class")
+plot(tree)
+text(tree)
+rpart.plot(tree,extra=104, nn= TRUE)
+entTree = rpart(class ~ ., data=trainset, method="class", parms=list(split="information"))
+tree.mushrooms
+
+#confusion Matrix for Complete Dataset
+tree.pred = predict(tree, mushrooms, type='class')
+table(tree.pred,mushrooms$class)
+#Output
+tree.pred   edible poisonous
+  edible      4208        48
+  poisonous      0      3867
+
+
+mean(tree.pred==mushrooms$class)
+#Output - [1] 0.9940909
+
+mean(tree.pred!=mushrooms$class)
+#Output - [1] 0.005909147
+
+
+#confusion Matrix for Test Dataset
+tree.pred1 = predict(tree, testset, type='class')
+confusionMatrix(tree.pred1,testset$class)
+
+#Output
+tree.pred1  edible poisonous
+  edible      1691        10
+  poisonous      0      1514
+  Accuracy : 0.9969          
+                 95% CI : (0.9943, 0.9985)
+    No Information Rate : 0.526           
+    P-Value [Acc > NIR] : < 2.2e-16       
+                                          
+                  Kappa : 0.9938          
+                                          
+ Mcnemar's Test P-Value : 0.004427        
+                                          
+            Sensitivity : 1.0000          
+            Specificity : 0.9934          
+         Pos Pred Value : 0.9941          
+         Neg Pred Value : 1.0000          
+             Prevalence : 0.5260          
+         Detection Rate : 0.5260          
+   Detection Prevalence : 0.5291          
+      Balanced Accuracy : 0.9967          
+                                          
+       'Positive' Class : edible  
+
+mean(tree.pred1==testset$class)
+#Output - [1] 0.9968896
+mean(tree.pred1!=testset$class)
+#Output - [1] 0.00311042
+
+
+#confusion Matrix for Train Dataset
+tree.pred2 = predict(tree, trainset, type='class')
+confusionMatrix(tree.pred2,trainset$class)
+#Output
+tree.pred2  edible poisonous
+  edible      2517        38
+  poisonous      0      2353
+     Accuracy : 0.9923          
+                 95% CI : (0.9894, 0.9945)
+    No Information Rate : 0.5128          
+    P-Value [Acc > NIR] : < 2.2e-16       
+                                          
+                  Kappa : 0.9845          
+                                          
+ Mcnemar's Test P-Value : 1.947e-09       
+                                          
+            Sensitivity : 1.0000          
+            Specificity : 0.9841          
+         Pos Pred Value : 0.9851          
+         Neg Pred Value : 1.0000          
+             Prevalence : 0.5128          
+         Detection Rate : 0.5128          
+   Detection Prevalence : 0.5206          
+      Balanced Accuracy : 0.9921          
+                                          
+       'Positive' Class : edible  
+
+mean(tree.pred2==trainset$class)
+#Output - [1] 0.9922575
+
+mean(tree.pred2!=trainset$class)
+#Output - [1] 0.007742461
+
+
+##Pruning
+
+set.seed(3)
+cv.mushrooms=cv.tree(tree.mushrooms,FUN=prune.misclass)
+names(cv.mushrooms)
+cv.mushrooms
+plot(cv.mushrooms$size ,cv.mushrooms$dev ,type="b")
+
+set.seed(3)
+prune.mushrooms=prune.misclass(tree.mushrooms,best=4)
+plot(prune.mushrooms)
+text(prune.mushrooms,pretty=0)
+tree.pred=predict(prune.mushrooms,testset,type="class")
+confusionMatrix(tree.pred,testset$class)
+#Output
+tree.pred   edible poisonous
+  edible      1691        10
+  poisonous      0      1514
+               Accuracy : 0.9969          
+                 95% CI : (0.9943, 0.9985)
+    No Information Rate : 0.526           
+    P-Value [Acc > NIR] : < 2.2e-16       
+                                          
+                  Kappa : 0.9938          
+                                          
+ Mcnemar's Test P-Value : 0.004427        
+                                          
+            Sensitivity : 1.0000          
+            Specificity : 0.9934          
+         Pos Pred Value : 0.9941          
+         Neg Pred Value : 1.0000          
+             Prevalence : 0.5260          
+         Detection Rate : 0.5260          
+   Detection Prevalence : 0.5291          
+      Balanced Accuracy : 0.9967          
+                                          
+       'Positive' Class : edible 
+
+mean(tree.pred ==testset$class)
+Output - [1] 0.9968896
+mean(tree.pred!=testset$class)
+Output - [1] 0.00311042
+
+
+
+set.seed(3)
+prune.mushrooms=prune.misclass(tree.mushrooms,best=2)
+plot(prune.mushrooms)
+text(prune.mushrooms,pretty=0)
+tree.pred=predict(prune.mushrooms,testset,type="class")
+confusionMatrix(tree.pred,testset$class)
+
+#Output
+tree.pred   edible poisonous
+  edible      1691        35
+  poisonous      0      1489
+                                  
+               Accuracy : 0.9891          
+                 95% CI : (0.9849, 0.9924)
+    No Information Rate : 0.526           
+    P-Value [Acc > NIR] : < 2.2e-16       
+                                          
+                  Kappa : 0.9781          
+                                          
+ Mcnemar's Test P-Value : 9.081e-09       
+                                          
+            Sensitivity : 1.0000          
+            Specificity : 0.9770          
+         Pos Pred Value : 0.9797          
+         Neg Pred Value : 1.0000          
+             Prevalence : 0.5260          
+         Detection Rate : 0.5260          
+   Detection Prevalence : 0.5369          
+      Balanced Accuracy : 0.9885          
+                                          
+       'Positive' Class : edible   
+
+mean(tree.pred ==testset$class)
+#Output - [1] 0.9891135
+mean(tree.pred!=testset$class)
+#Output - [1] 0.01088647
+
+set.seed(3)
+prune.mushrooms=prune.misclass(tree.mushrooms,best=3)
+plot(prune.mushrooms)
+text(prune.mushrooms,pretty=0)
+tree.pred=predict(prune.mushrooms,testset,type="class")
+confusionMatrix(tree.pred,testset$class)
+
+#Output 
+tree.pred   edible poisonous
+  edible      1691        10
+  poisonous      0      1514
+
+               Accuracy : 0.9969          
+                 95% CI : (0.9943, 0.9985)
+    No Information Rate : 0.526           
+    P-Value [Acc > NIR] : < 2.2e-16       
+                                          
+                  Kappa : 0.9938          
+                                          
+ Mcnemar's Test P-Value : 0.004427        
+                                          
+            Sensitivity : 1.0000          
+            Specificity : 0.9934          
+         Pos Pred Value : 0.9941          
+         Neg Pred Value : 1.0000          
+             Prevalence : 0.5260          
+         Detection Rate : 0.5260          
+   Detection Prevalence : 0.5291          
+      Balanced Accuracy : 0.9967          
+                                          
+       'Positive' Class : edible 
+mean(tree.pred ==testset$class)
+#Output - [1] 0.9968896
+
+mean(tree.pred!=testset$class)
+
+#Output - [1] 0.00311042
+
+library(randomForest)
+## mtry=4 sqrt(4)=2
+set.seed(3)
+fit.randomForest <- randomForest(class~., data=trainset, ntree=1500,mtry=2)
+predictions <- predict(fit.randomForest, testset, type="class")
+confusionMatrix(predictions, testset$class)
+
+#Output
+Prediction  edible poisonous
+  edible      1691         0
+  poisonous      0      1524
+                                     
+               Accuracy : 1          
+                 95% CI : (0.9989, 1)
+    No Information Rate : 0.526      
+    P-Value [Acc > NIR] : < 2.2e-16  
+                                     
+                  Kappa : 1          
+                                     
+ Mcnemar's Test P-Value : NA         
+                                     
+            Sensitivity : 1.000      
+            Specificity : 1.000      
+         Pos Pred Value : 1.000      
+         Neg Pred Value : 1.000      
+             Prevalence : 0.526      
+         Detection Rate : 0.526      
+   Detection Prevalence : 0.526      
+      Balanced Accuracy : 1.000      
+                                     
+       'Positive' Class : edible     
+                                 
+
+
+mean(predictions !=testset$class)
+#Output
+[1] 0
+
+
+
+fit.randomForest <- randomForest(class~., data=trainset, ntree=500,mtry=1)
+predictions <- predict(fit.randomForest, testset, type="class")
+confusionMatrix(predictions, testset$class)
+#Output
+Prediction  edible poisonous
+  edible      1691        14
+  poisonous      0      1510
+                                          
+               Accuracy : 0.9956          
+                 95% CI : (0.9927, 0.9976)
+    No Information Rate : 0.526           
+    P-Value [Acc > NIR] : < 2.2e-16       
+                                          
+                  Kappa : 0.9913          
+                                          
+ Mcnemar's Test P-Value : 0.000512        
+                                          
+            Sensitivity : 1.0000          
+            Specificity : 0.9908          
+         Pos Pred Value : 0.9918          
+         Neg Pred Value : 1.0000          
+             Prevalence : 0.5260          
+         Detection Rate : 0.5260          
+   Detection Prevalence : 0.5303          
+      Balanced Accuracy : 0.9954          
+                                          
+       'Positive' Class : edible 
+
+
+
+mean(predictions !=testset$class)
+[1] 0.004354588
+
+
+set.seed(3)
+fit.randomForest <- randomForest(class~.,data=trainset, ntree=1000,mtry=2)
+predictions <- predict(fit.randomForest, testset, type="class")
+confusionMatrix(predictions, testset$class)
+#Output
+Prediction  edible poisonous
+  edible      1691         0
+  poisonous      0      1524
+                                     
+               Accuracy : 1          
+                 95% CI : (0.9989, 1)
+    No Information Rate : 0.526      
+    P-Value [Acc > NIR] : < 2.2e-16  
+                                     
+                  Kappa : 1          
+                                     
+ Mcnemar's Test P-Value : NA         
+                                     
+            Sensitivity : 1.000      
+            Specificity : 1.000      
+         Pos Pred Value : 1.000      
+         Neg Pred Value : 1.000      
+             Prevalence : 0.526      
+         Detection Rate : 0.526      
+   Detection Prevalence : 0.526      
+      Balanced Accuracy : 1.000      
+                                     
+       'Positive' Class : edible     
+
+
+mean(predictions!=testset$class)
+[1] 0
+
+
+
+
+##BAgging
+
+fit.randomForest <- randomForest(class~., data=trainset)
+predictions <- predict(fit.randomForest,testset, type="class")
+confusionMatrix(predictions,  testset$class)
+##Output
+Confusion Matrix and Statistics
+
+           Reference
+Prediction  edible poisonous
+  edible      1691         0
+  poisonous      0      1524
+                                     
+               Accuracy : 1          
+                 95% CI : (0.9989, 1)
+    No Information Rate : 0.526      
+    P-Value [Acc > NIR] : < 2.2e-16  
+                                     
+                  Kappa : 1          
+                                     
+ Mcnemar's Test P-Value : NA         
+                                     
+            Sensitivity : 1.000      
+            Specificity : 1.000      
+         Pos Pred Value : 1.000      
+         Neg Pred Value : 1.000      
+             Prevalence : 0.526      
+         Detection Rate : 0.526      
+   Detection Prevalence : 0.526      
+      Balanced Accuracy : 1.000      
+                                     
+       'Positive' Class : edible     
+                                     
+> 
+> mean(predictions !=testset$class)
+[1] 0
+ 
+
+#Naive Bayes
+
+library(e1071)
+library(caret)
+
+
+freq <- function(x){table(x)/length(x)*100}
+freq(mushrooms$class)
+
+#Output
+x
+       e        p 
+51.80352 48.19648 
+
+set.seed(3)
+s=sample(1:nrow(mushrooms),0.6*nrow(mushrooms))
+mush_Train=mushrooms[s,]
+mush_Test=mushrooms[-s,]
+mush_Test1<- mush_Test[, -1]
+Naive_Bayes_Model=naiveBayes(class~., data=mush_Train) 
+NB_2 = predict(Naive_Bayes_Model, mush_Test1)
+confusionMatrix(NB_2,mush_Test$class)
+
+#Output
+Confusion Matrix and Statistics
+
+           Reference
+Prediction  edible poisonous
+  edible      1648       170
+  poisonous     16      1416
+                                          
+               Accuracy : 0.9428          
+                 95% CI : (0.9342, 0.9505)
+    No Information Rate : 0.512           
+    P-Value [Acc > NIR] : < 2.2e-16       
+                                          
+                  Kappa : 0.8852          
+                                          
+ Mcnemar's Test P-Value : < 2.2e-16       
+                                          
+            Sensitivity : 0.9904          
+            Specificity : 0.8928          
+         Pos Pred Value : 0.9065          
+         Neg Pred Value : 0.9888          
+             Prevalence : 0.5120          
+         Detection Rate : 0.5071          
+   Detection Prevalence : 0.5594          
+      Balanced Accuracy : 0.9416          
+                                          
+       'Positive' Class : edible
+	   
+	   
+
+	   
+mean(NB_2!=mush_Test$class)
+# Output - 0.05723077
+
+summary(Naive_Bayes_Model)
+#Output        
+        Length Class  Mode     
+apriori  2     table  numeric  
+tables  20     -none- list     
+levels   2     -none- character
+call     4     -none- call 
+	   
+
+//Training Error
+tr.pred = predict(Naive_Bayes_Model,mush_Train)
+tr.table = table(tr.pred, Truth = mush_Train$class)
+
+mean(tr.pred!=  mush_Train$class)
+#Output - 0.04884055
+
+mean(tr.pred == mush_Train$class)
+#Output - 0.9511595
+
+
+//Test Error
+ts.pred = predict(Naive_Bayes_Model,mush_Test)
+ts.table = table(ts.pred, Truth = mush_Test$class)
+
+mean(ts.pred!=  mush_Test$class)
+#Output - 0.05723077	
+
+mean(ts.pred == mush_Test$class)
+#Output - 0.9427692
+
+
+#Support Vector Machine
+#Non-Linear - Radial
+
+svmfit=svm(class~.,data=Trainset,kernel="radial",gamma=2,cost=0.1,scale=FALSE)
+summary(svmfit)
+
+#Output# Call:
+svm(formula = class ~ ., data = Trainset, kernel = "radial", gamma = 2, cost = 0.1, scale = FALSE)
+
+
+Parameters:
+   SVM-Type:  C-classification 
+ SVM-Kernel:  radial 
+       cost:  0.1 
+      gamma:  2 
+
+Number of Support Vectors:  4908
+
+ ( 2517 2391 )
+
+
+Number of Classes:  2 
+
+Levels: 
+ edible poisonous
+
+#Train Error
+tr.pred = predict(svmfit,Trainset)
+tr.table = table(tr.pred, truth=Trainset$class)
+mean(tr.pred!=  Trainset$class)
+
+#Output - 0.4871638
+
+mean(tr.pred==Trainset$class)
+#Output - 0.5128362
+
+#Test Error
+ts.pred = predict(svmfit,Testset)
+ts.table = table(ts.pred, truth = Testset$class)
+mean(ts.pred!=  Testset$class)
+
+#Output - 0.474028
+
+mean(ts.pred==Testset$class)
+#Output - 0.525972
+
+svmfit=svm(class~.,data=Trainset,kernel="radial",cost=0.01,scale=FALSE) #default gamma 
+summary(svmfit)
+
+#Output:
+
+Call:
+svm(formula = class ~ ., data = Trainset, kernel = "radial", cost = 0.01, scale = FALSE)
+
+
+Parameters:
+   SVM-Type:  C-classification 
+ SVM-Kernel:  radial 
+       cost:  0.01 
+      gamma:  0.01086957 
+
+Number of Support Vectors:  4111
+
+ ( 2056 2055 )
+
+
+Number of Classes:  2 
+
+Levels: 
+ edible poisonous
+
+#Train Error
+tr.pred = predict(svmfit,Trainset)
+tr.table = table(tr.pred, truth=Trainset$class)
+mean(tr.pred!=  Trainset$class)
+
+#Output
+[1] 0.1033007
+
+mean(tr.pred == Trainset$class)
+#Output - 0.8966993
+
+
+Test Error:
+ts.pred = predict(svmfit,Testset)
+ts.table = table(ts.pred, truth=Testset$class)
+mean(ts.pred!=  Testset$class)
+
+#Output:
+[1] 0.09642302
+
+mean(ts.pred == Testset$class)
+#Output - 0.903577
+
+
+svmfit=svm(class~.,data=Trainset,kernel="radial",gamma=1,cost=0.001,scale=FALSE)
+summary(svmfit)
+
+#Output
+Parameters:
+   SVM-Type:  C-classification 
+ SVM-Kernel:  radial 
+       cost:  0.001 
+      gamma:  1 
+
+Number of Support Vectors:  4793
+
+ ( 2402 2391 )
+
+
+Number of Classes:  2 
+
+Levels: 
+ edible poisonous
+
+
+
+#Train Error
+tr.pred = predict(svmfit,Trainset)
+tr.table = table(tr.pred, truth=Trainset$class)
+mean(tr.pred!=  Trainset$class)
+
+#Output
+[1] 0.4871638
+mean(tr.pred == Trainset$class)
+#Output - 0.5128362
+
+#Test Error
+ts.pred = predict(svmfit,Testset)
+ts.table = table(ts.pred, truth = Testset$class)
+mean(ts.pred!=  Testset$class)
+
+#Output
+[1] 0.474028
+
+mean(ts.pred == Testset$class)
+#Output -  0.525972
+
+#linear
+svmfit=svm(class~.,data=Trainset,kernel="linear",cost=0.1, scale=FALSE)
+summary(svmfit)
+
+#Output
+Call:
+svm(formula = class ~ ., data = Trainset, kernel = "linear", cost = 0.1, scale = FALSE)
+
+
+Parameters:
+   SVM-Type:  C-classification 
+ SVM-Kernel:  linear 
+       cost:  0.1 
+      gamma:  0.01086957 
+
+Number of Support Vectors:  289
+
+ ( 140 149 )
+
+
+Number of Classes:  2 
+
+Levels: 
+ edible poisonous
+
+
+#Train Error
+tr.pred = predict(svmfit,Trainset)
+tr.table = table(tr.pred, truth=Trainset$class)
+mean(tr.pred!=  Trainset$class)
+
+#Output:
+[1] 0.001222494
+
+mean(tr.pred ==  Trainset$class)
+#Output -  0.9987775
+
+#Test Error
+ts.pred = predict(svmfit,Testset)
+ts.table = table(ts.pred, truth=Testset$class)
+mean(ts.pred!=  Testset$class)
+
+#Output:
+[1] 0.000622084
+
+mean(ts.pred ==  Testset$class)
+#Output - 0.9993779
+
+svmfit=svm(class~.,data=Trainset,kernel="linear",cost=0.01, scale=FALSE)
+summary(svmfit)
+
+#Output
+
+Call:
+svm(formula = class ~ ., data = Trainset, kernel = "linear", cost = 0.01, scale = FALSE)
+
+
+Parameters:
+   SVM-Type:  C-classification 
+ SVM-Kernel:  linear 
+       cost:  0.01 
+      gamma:  0.01086957 
+
+Number of Support Vectors:  713
+
+ ( 354 359 )
+
+
+Number of Classes:  2 
+
+Levels: 
+ edible poisonous
+
+
+#Train Error
+tr.pred = predict(svmfit,Trainset)
+tr.table = table(tr.pred, truth=Trainset$class)
+mean(tr.pred!=  Trainset$class)
+
+#Output:
+[1] 0.01487368
+
+mean(tr.pred ==  Trainset$class)
+#Output - 0.9851263
+
+#Test Error
+ts.pred = predict(svmfit,Testset)
+ts.table = table(ts.pred, truth=Testset$class)
+mean(ts.pred!=  Testset$class)
+
+#Output:
+[1] 0.01368585
+
+mean(ts.pred ==  Testset$class)
+#Output - 0.9863142
+
+
+svmfit=svm(class~.,data=Trainset,kernel="linear",cost=0.001, scale=FALSE)
+summary(svmfit)
+
+#Output
+
+Call:
+svm(formula = class ~ ., data = Trainset, kernel = "linear", cost = 0.001, scale = FALSE)
+
+
+Parameters:
+   SVM-Type:  C-classification 
+ SVM-Kernel:  linear 
+       cost:  0.001 
+      gamma:  0.01086957 
+
+Number of Support Vectors:  1877
+
+ ( 940 937 )
+
+
+Number of Classes:  2 
+
+Levels: 
+ edible poisonous
+
+#Train Error
+tr.pred = predict(svmfit,Trainset)
+tr.table = table(tr.pred, truth=Trainset$class)
+mean(tr.pred!=  Trainset$class)
+
+#Output:
+[1] 0.05725346
+
+mean(tr.pred ==  Trainset$class)
+#Output - 0.9427465
+
+#Test Error
+ts.pred = predict(svmfit,Testset)
+ts.table = table(ts.pred, truth=Testset$class)
+mean(ts.pred!=  Testset$class)
+
+#Output - 0.05443235
+mean(ts.pred ==  Testset$class)
+#Output - 0.9455677
+
+#Polynomial
+
+svm.poly = svm(class ~ ., data = Trainset, kernel = "poly",gamma=2, degree = 2,cost = 0.001)
+summary(svm.poly)
+
+#Output:
+
+Call:
+svm(formula = class ~ ., data = Trainset, kernel = "poly", gamma = 2, degree = 2, cost = 0.001)
+
+
+Parameters:
+   SVM-Type:  C-classification 
+ SVM-Kernel:  polynomial 
+       cost:  0.001 
+     degree:  2 
+      gamma:  2 
+     coef.0:  0 
+
+Number of Support Vectors:  269
+
+ ( 135 134 )
+
+
+Number of Classes:  2 
+
+Levels: 
+ edible poisonous
+
+# Train Error
+
+tr.pred = predict(svm.poly,Trainset)
+tr.table = table(tr.pred, truth=Trainset$class)
+mean(tr.pred!=  Trainset$class)
+
+#Output
+[1] 0
+
+mean(tr.pred == Trainset$class)
+#Output - 1
+
+#Test Set Error
+ts.pred = predict(svm.poly,Testset)
+ts.table = table(ts.pred, truth=Testset$class)
+mean(ts.pred!=  Testset$class)
+
+#Output
+[1] 0
+
+mean(ts.pred == Testset$class)
+#Output - 1
+
+svm.poly = svm(class ~ ., data = Trainset, kernel = "poly", degree = 2,cost = 0.01) #default gamma
+summary(svm.poly)
+
+#Output
+
+Parameters:
+   SVM-Type:  C-classification 
+ SVM-Kernel:  polynomial 
+       cost:  0.01 
+     degree:  2 
+      gamma:  0.01041667 
+     coef.0:  0 
+
+Number of Support Vectors:  4782
+
+ ( 2391 2391 )
+
+
+Number of Classes:  2 
+
+Levels: 
+ edible poisonous
+
+#Train error
+
+tr.pred = predict(svm.poly,Trainset)
+tr.table = table(tr.pred, truth=Trainset$class)
+mean(tr.pred!=  Trainset$class)
+#Output - 0.4871638
+
+mean(tr.pred==Trainset$class)
+#Output - 0.5128362
+
+
+#Test Error
+ts.pred = predict(svm.poly,Testset)
+ts.table = table(ts.pred, truth=Testset$class)
+mean(ts.pred!=  Testset$class)
+#Output - 0.474028
+
+mean(ts.pred==Testset$class)
+#Output - 0.525972
+
+
+
+   
+
+  
+	   
+
+
+
+
+
+
+	   
